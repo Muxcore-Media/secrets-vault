@@ -1,0 +1,14 @@
+{
+  "name": "Secrets Vault",
+  "description": "Multi-provider secrets sidecar (Vault/OpenBao, Infisical, AWS, GCP, Azure)",
+  "version": "0.1.0",
+  "author": "MuxCore",
+  "roles": [
+    "security"
+  ],
+  "capabilities": [
+    "secrets",
+    "secrets.vault"
+  ],
+  "contracts": []
+}

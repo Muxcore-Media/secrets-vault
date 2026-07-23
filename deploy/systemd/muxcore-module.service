@@ -1,0 +1,26 @@
+[Unit]
+Description=MuxCore Module - secrets-vault
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=muxcore
+Group=muxcore
+Environment=SECRETS_BACKEND=vault
+ExecStart=/usr/local/bin/secrets-vault \
+  --muxcore-mesh-addr localhost:9090 \
+  --muxcore-module-id secrets-vault
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+; Security hardening
+CapabilityBoundingSet=
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
