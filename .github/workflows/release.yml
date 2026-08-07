@@ -29,6 +29,11 @@ jobs:
           GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o dist/secrets-vault-linux-amd64 ./cmd/module
           GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o dist/secrets-vault-linux-arm64 ./cmd/module
       - uses: docker/setup-buildx-action@v3
+      - name: Lowercase image name
+        run: |
+          echo "IMAGE_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -41,8 +46,8 @@ jobs:
           file: ./secrets-vault/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/secrets-vault:${{ github.ref_name }}
-            ghcr.io/${{ github.repository_owner }}/secrets-vault:latest
+            ghcr.io/${{ env.IMAGE_OWNER }}/secrets-vault:${{ github.ref_name }}
+            ghcr.io/${{ env.IMAGE_OWNER }}/secrets-vault:latest
       - name: Create release
         uses: softprops/action-gh-release@v3
         with:
