@@ -40,7 +40,7 @@ func NewModule(cfg Config) *Module {
 		cfg.ID = "secrets-vault"
 	}
 	if cfg.GRPCAddr == "" {
-		cfg.GRPCAddr = ":9500"
+		cfg.GRPCAddr = ":9551"
 	}
 	if v := os.Getenv("SECRETS_GRPC_ADDR"); v != "" {
 		cfg.GRPCAddr = v
