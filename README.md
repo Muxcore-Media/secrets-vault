@@ -46,7 +46,7 @@ All backends support Get / Set / Delete / List in v1 where the API allows. IAM/p
 |----------|---------|-------------|
 | `SECRETS_BACKEND` | _(required)_ | `vault` \| `infisical` \| `aws` \| `gcp` \| `azure` |
 | `SECRETS_PREFIX` | `muxcore/` | Key namespace prefix |
-| `SECRETS_GRPC_ADDR` | `:9500` | gRPC listen address |
+| `SECRETS_GRPC_ADDR` | `:9551` | gRPC listen address |
 
 ### Vault / OpenBao
 
