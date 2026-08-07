@@ -18,7 +18,7 @@ services:
       context: ../..
       dockerfile: secrets-vault/Dockerfile
     ports:
-      - "9500:9500"
+      - "9551:9551"
     environment:
       MUXCORE_GRPC_ADDR: core:9090
       MUXCORE_INSECURE_DISABLE_TLS: "true"
@@ -27,7 +27,7 @@ services:
       SECRETS_BACKEND: vault
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: root
-      SECRETS_GRPC_ADDR: ":9500"
+      SECRETS_GRPC_ADDR: ":9551"
     depends_on:
       core:
         condition: service_healthy
