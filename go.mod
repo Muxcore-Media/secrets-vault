@@ -7,9 +7,9 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.1
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0
-	github.com/Muxcore-Media/core v0.4.0
-	github.com/Muxcore-Media/core/pkg/contracts v0.0.0
-	github.com/Muxcore-Media/core/sdk/go/module v0.1.0
+	github.com/Muxcore-Media/core v0.5.0
+	github.com/Muxcore-Media/core/pkg/contracts v0.5.0
+	github.com/Muxcore-Media/core/sdk/go/module v0.5.0
 	github.com/aws/aws-sdk-go-v2 v1.36.5
 	github.com/aws/aws-sdk-go-v2/config v1.29.17
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.35.7
@@ -80,9 +80,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260610212136-7ab31c22f7ad // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace github.com/Muxcore-Media/core => ../core
-
-replace github.com/Muxcore-Media/core/sdk/go/module => ../core/sdk/go/module
-
-replace github.com/Muxcore-Media/core/pkg/contracts => ../core/pkg/contracts
