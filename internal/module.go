@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 
 	"google.golang.org/grpc"
 
@@ -24,7 +25,9 @@ type Module struct {
 	lis      net.Listener
 	id       string
 	grpcAddr string
+	cfgMu    sync.RWMutex
 	backendN string
+	prefix   string
 	insecure bool
 }
 
@@ -32,6 +35,7 @@ type Config struct {
 	ID       string
 	GRPCAddr string
 	Backend  string
+	Prefix   string
 	Insecure bool
 }
 
@@ -48,10 +52,18 @@ func NewModule(cfg Config) *Module {
 	if v := os.Getenv("SECRETS_BACKEND"); v != "" && cfg.Backend == "" {
 		cfg.Backend = v
 	}
+	prefix := cfg.Prefix
+	if prefix == "" {
+		prefix = os.Getenv("SECRETS_PREFIX")
+	}
+	if prefix == "" {
+		prefix = backend.DefaultPrefix
+	}
 	return &Module{
 		id:       cfg.ID,
 		grpcAddr: cfg.GRPCAddr,
 		backendN: strings.ToLower(strings.TrimSpace(cfg.Backend)),
+		prefix:   prefix,
 		insecure: cfg.Insecure,
 	}
 }
@@ -60,24 +72,24 @@ func (m *Module) Info() contracts.ModuleInfo {
 	return contracts.ModuleInfo{
 		ID:           m.id,
 		Name:         "Secrets Vault",
-		Version:      "0.1.0",
+		Version:      "0.1.1",
 		Roles:        []string{"security"},
 		Description:  "Multi-provider secrets sidecar (Vault/OpenBao, Infisical, AWS, GCP, Azure)",
 		Author:       "MuxCore",
-		Capabilities: []string{contracts.CapabilitySecrets, "secrets.vault"},
+		Capabilities: []string{contracts.CapabilitySecrets, "secrets.vault", "settings"},
 		HTTPAddr:     m.grpcAddr,
 	}
 }
 
 func (m *Module) Init(ctx context.Context) error {
-	if m.backendN == "" {
+	m.cfgMu.RLock()
+	backendN := m.backendN
+	prefix := m.prefix
+	m.cfgMu.RUnlock()
+	if backendN == "" {
 		return fmt.Errorf("SECRETS_BACKEND is required (vault|infisical|aws|gcp|azure)")
 	}
-	prefix := os.Getenv("SECRETS_PREFIX")
-	if prefix == "" {
-		prefix = backend.DefaultPrefix
-	}
-	b, err := newBackend(ctx, m.backendN, prefix)
+	b, err := newBackend(ctx, backendN, prefix)
 	if err != nil {
 		return fmt.Errorf("create secrets backend: %w", err)
 	}
@@ -92,7 +104,7 @@ func (m *Module) Init(ctx context.Context) error {
 	m.lis = lis
 	m.grpcAddr = lis.Addr().String()
 
-	slog.Info("secrets-vault initialized", "backend", m.backendN, "addr", m.grpcAddr)
+	slog.Info("secrets-vault initialized", "backend", backendN, "prefix", prefix, "addr", m.grpcAddr)
 	return nil
 }
 
@@ -103,6 +115,7 @@ func (m *Module) Start(ctx context.Context) error {
 	}
 	m.grpcSrv = grpcSrv
 	m.srv.RegisterWithGRPC(m.grpcSrv)
+	modulesdk.RegisterSettings(m.grpcSrv, m.id, m)
 
 	go func() {
 		slog.Info("secrets-vault gRPC service started", "addr", m.grpcAddr, "backend", m.backendN)

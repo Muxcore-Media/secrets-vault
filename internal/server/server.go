@@ -16,14 +16,29 @@ import (
 
 type Server struct {
 	secretsv1.UnimplementedSecretsServiceServer
-	backend  backend.Backend
+	be       atomic.Value // backend.Backend
 	getCount atomic.Int64
 	setCount atomic.Int64
 	delCount atomic.Int64
 }
 
 func New(b backend.Backend) *Server {
-	return &Server{backend: b}
+	s := &Server{}
+	s.be.Store(b)
+	return s
+}
+
+// ReplaceBackend swaps the backing provider. Returns the previous backend (caller should Close).
+func (s *Server) ReplaceBackend(b backend.Backend) backend.Backend {
+	old := s.be.Swap(b)
+	if old == nil {
+		return nil
+	}
+	return old.(backend.Backend)
+}
+
+func (s *Server) backend() backend.Backend {
+	return s.be.Load().(backend.Backend)
 }
 
 func (s *Server) RegisterWithGRPC(srv *grpc.Server) {
@@ -34,7 +49,7 @@ func (s *Server) Get(ctx context.Context, req *secretsv1.GetRequest) (*secretsv1
 	if req.GetKey() == "" {
 		return nil, status.Error(codes.InvalidArgument, "key is required")
 	}
-	val, err := s.backend.Get(ctx, req.GetKey())
+	val, err := s.backend().Get(ctx, req.GetKey())
 	if err != nil {
 		slog.Error("secrets: get failed", "key", req.GetKey(), "error", err)
 		return nil, mapError(err)
@@ -47,7 +62,7 @@ func (s *Server) Set(ctx context.Context, req *secretsv1.SetRequest) (*secretsv1
 	if req.GetKey() == "" {
 		return nil, status.Error(codes.InvalidArgument, "key is required")
 	}
-	if err := s.backend.Set(ctx, req.GetKey(), req.GetValue()); err != nil {
+	if err := s.backend().Set(ctx, req.GetKey(), req.GetValue()); err != nil {
 		slog.Error("secrets: set failed", "key", req.GetKey(), "error", err)
 		return nil, mapError(err)
 	}
@@ -59,7 +74,7 @@ func (s *Server) Delete(ctx context.Context, req *secretsv1.DeleteRequest) (*sec
 	if req.GetKey() == "" {
 		return nil, status.Error(codes.InvalidArgument, "key is required")
 	}
-	if err := s.backend.Delete(ctx, req.GetKey()); err != nil {
+	if err := s.backend().Delete(ctx, req.GetKey()); err != nil {
 		slog.Error("secrets: delete failed", "key", req.GetKey(), "error", err)
 		return nil, mapError(err)
 	}
@@ -68,7 +83,7 @@ func (s *Server) Delete(ctx context.Context, req *secretsv1.DeleteRequest) (*sec
 }
 
 func (s *Server) List(ctx context.Context, req *secretsv1.ListRequest) (*secretsv1.ListResponse, error) {
-	keys, err := s.backend.List(ctx)
+	keys, err := s.backend().List(ctx)
 	if err != nil {
 		slog.Error("secrets: list failed", "error", err)
 		return nil, mapError(err)
