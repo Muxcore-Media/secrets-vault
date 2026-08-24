@@ -103,9 +103,6 @@ func (c *Client) Get(ctx context.Context, key string) (string, error) {
 	if err := c.doJSON(ctx, http.MethodGet, "/api/v3/secrets/raw/"+url.PathEscape(name)+"?"+q.Encode(), nil, &resp); err != nil {
 		return "", err
 	}
-	if resp.Secret.SecretValue == "" {
-		// empty value is valid; distinguish missing via HTTP status in doJSON
-	}
 	return resp.Secret.SecretValue, nil
 }
 
@@ -245,7 +242,7 @@ func (c *Client) roundTrip(ctx context.Context, method, path, token string, body
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return err
