@@ -1,4 +1,18 @@
 services:
+  openbao:
+    image: quay.io/openbao/openbao:2.1.1
+    command: server -dev -dev-root-token-id=root -dev-listen-address=0.0.0.0:8200
+    ports:
+      - "8200:8200"
+    environment:
+      BAO_DEV_ROOT_TOKEN_ID: root
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--tries=1", "--spider", "http://127.0.0.1:8200/v1/sys/health"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+      start_period: 3s
+
   core:
     image: ghcr.io/muxcore-media/core:latest
     ports:
@@ -25,9 +39,11 @@ services:
       MUXCORE_LOG_LEVEL: debug
       MUXCORE_MODULE_ID: secrets-vault
       SECRETS_BACKEND: vault
-      VAULT_ADDR: http://vault:8200
+      SECRETS_GRPC_ADDR: 127.0.0.1:9551
+      VAULT_ADDR: http://openbao:8200
       VAULT_TOKEN: root
-      SECRETS_GRPC_ADDR: ":9551"
     depends_on:
       core:
+        condition: service_healthy
+      openbao:
         condition: service_healthy

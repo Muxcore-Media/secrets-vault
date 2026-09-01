@@ -44,7 +44,7 @@ func NewModule(cfg Config) *Module {
 		cfg.ID = "secrets-vault"
 	}
 	if cfg.GRPCAddr == "" {
-		cfg.GRPCAddr = ":9551"
+		cfg.GRPCAddr = "127.0.0.1:9551"
 	}
 	if v := os.Getenv("SECRETS_GRPC_ADDR"); v != "" {
 		cfg.GRPCAddr = v
@@ -72,7 +72,7 @@ func (m *Module) Info() contracts.ModuleInfo {
 	return contracts.ModuleInfo{
 		ID:           m.id,
 		Name:         "Secrets Vault",
-		Version:      "0.1.1",
+		Version:      Version,
 		Roles:        []string{"security"},
 		Description:  "Multi-provider secrets sidecar (Vault/OpenBao, Infisical, AWS, GCP, Azure)",
 		Author:       "MuxCore",
@@ -89,7 +89,7 @@ func (m *Module) Init(ctx context.Context) error {
 	if backendN == "" {
 		return fmt.Errorf("SECRETS_BACKEND is required (vault|infisical|aws|gcp|azure)")
 	}
-	b, err := newBackend(ctx, backendN, prefix)
+	b, err := m.createBackend(ctx, backendN, prefix)
 	if err != nil {
 		return fmt.Errorf("create secrets backend: %w", err)
 	}

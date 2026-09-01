@@ -13,8 +13,10 @@ Pre-1.0 beta software. APIs and interfaces are not yet stable.
 
 ## Reporting a Vulnerability
 
-**Do not open a public issue.** Report via GitHub Security Advisories:
-https://github.com/Muxcore-Media/secrets-vault/security/advisories
+**Do not open a public issue.** Report via Forgejo security advisories:
+https://git.zem.systems/muxcore/secrets-vault/security/advisories
+
+(GitHub mirror: https://github.com/Muxcore-Media/secrets-vault/security/advisories)
 
 Acknowledgment within **72 hours**. Target patch: **7 days** critical, **30 days** moderate.
 
@@ -23,7 +25,7 @@ Acknowledgment within **72 hours**. Target patch: **7 days** critical, **30 days
 1. Reporter submits private report
 2. Maintainers triage within 72 hours, assign severity
 3. Fix developed in private fork; reporter credited (with permission)
-4. GitHub Security Advisory published with fix release
+4. Security advisory published with fix release
 
 ## Safe Harbor
 
@@ -37,3 +39,4 @@ We will not pursue legal action against researchers who:
 
 This module never logs secret values. Logs may include key names and error types only.
 Run only one module advertising the `secrets` capability per mesh.
+Provider credentials are read from process environment only — not from admin settings.

@@ -8,15 +8,43 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 
 	"github.com/Muxcore-Media/secrets-vault/internal/backend"
 )
 
+type secretsAPI interface {
+	GetSecret(ctx context.Context, name string, version string, options *azsecrets.GetSecretOptions) (azsecrets.GetSecretResponse, error)
+	SetSecret(ctx context.Context, name string, parameters azsecrets.SetSecretParameters, options *azsecrets.SetSecretOptions) (azsecrets.SetSecretResponse, error)
+	DeleteSecret(ctx context.Context, name string, options *azsecrets.DeleteSecretOptions) (azsecrets.DeleteSecretResponse, error)
+	NewListSecretPropertiesPager(options *azsecrets.ListSecretPropertiesOptions) *runtime.Pager[azsecrets.ListSecretPropertiesResponse]
+}
+
+type liveSecretsAPI struct {
+	client *azsecrets.Client
+}
+
+func (a *liveSecretsAPI) GetSecret(ctx context.Context, name string, version string, options *azsecrets.GetSecretOptions) (azsecrets.GetSecretResponse, error) {
+	return a.client.GetSecret(ctx, name, version, options)
+}
+
+func (a *liveSecretsAPI) SetSecret(ctx context.Context, name string, parameters azsecrets.SetSecretParameters, options *azsecrets.SetSecretOptions) (azsecrets.SetSecretResponse, error) {
+	return a.client.SetSecret(ctx, name, parameters, options)
+}
+
+func (a *liveSecretsAPI) DeleteSecret(ctx context.Context, name string, options *azsecrets.DeleteSecretOptions) (azsecrets.DeleteSecretResponse, error) {
+	return a.client.DeleteSecret(ctx, name, options)
+}
+
+func (a *liveSecretsAPI) NewListSecretPropertiesPager(options *azsecrets.ListSecretPropertiesOptions) *runtime.Pager[azsecrets.ListSecretPropertiesResponse] {
+	return a.client.NewListSecretPropertiesPager(options)
+}
+
 // Client implements backend.Backend against Azure Key Vault.
 type Client struct {
-	client *azsecrets.Client
+	api    secretsAPI
 	prefix string
 }
 
@@ -35,7 +63,12 @@ func NewFromEnv(ctx context.Context, prefix string) (*Client, error) {
 		return nil, fmt.Errorf("azure key vault client: %w", err)
 	}
 	_ = ctx
-	return &Client{client: client, prefix: prefix}, nil
+	return &Client{api: &liveSecretsAPI{client: client}, prefix: prefix}, nil
+}
+
+// NewWithAPI is used by tests.
+func NewWithAPI(a secretsAPI, prefix string) *Client {
+	return &Client{api: a, prefix: prefix}
 }
 
 func sanitizeName(name string) string {
@@ -62,7 +95,7 @@ func (c *Client) Get(ctx context.Context, key string) (string, error) {
 	if key == "" {
 		return "", backend.ErrEmptyKey
 	}
-	resp, err := c.client.GetSecret(ctx, c.name(key), "", nil)
+	resp, err := c.api.GetSecret(ctx, c.name(key), "", nil)
 	if err != nil {
 		return "", mapAzureErr(err)
 	}
@@ -76,7 +109,7 @@ func (c *Client) Set(ctx context.Context, key, value string) error {
 	if key == "" {
 		return backend.ErrEmptyKey
 	}
-	_, err := c.client.SetSecret(ctx, c.name(key), azsecrets.SetSecretParameters{Value: &value}, nil)
+	_, err := c.api.SetSecret(ctx, c.name(key), azsecrets.SetSecretParameters{Value: &value}, nil)
 	return mapAzureErr(err)
 }
 
@@ -84,12 +117,12 @@ func (c *Client) Delete(ctx context.Context, key string) error {
 	if key == "" {
 		return backend.ErrEmptyKey
 	}
-	_, err := c.client.DeleteSecret(ctx, c.name(key), nil)
+	_, err := c.api.DeleteSecret(ctx, c.name(key), nil)
 	return mapAzureErr(err)
 }
 
 func (c *Client) List(ctx context.Context) ([]string, error) {
-	pager := c.client.NewListSecretPropertiesPager(nil)
+	pager := c.api.NewListSecretPropertiesPager(nil)
 	wantPrefix := sanitizeName(strings.TrimSuffix(c.prefix, "/"))
 	var out []string
 	for pager.More() {
@@ -119,7 +152,7 @@ func (c *Client) List(ctx context.Context) ([]string, error) {
 }
 
 func (c *Client) Ping(ctx context.Context) error {
-	pager := c.client.NewListSecretPropertiesPager(nil)
+	pager := c.api.NewListSecretPropertiesPager(nil)
 	if pager.More() {
 		_, err := pager.NextPage(ctx)
 		return mapAzureErr(err)

@@ -81,19 +81,47 @@ func NewWithHTTP(httpClient *http.Client, baseURL, projectID, env, token, prefix
 	}
 }
 
-func (c *Client) secretName(key string) string {
-	return backend.PrefixedName(c.prefix, key)
+// NewWithAuth is used by tests for Universal Auth retry coverage.
+func NewWithAuth(httpClient *http.Client, baseURL, projectID, env, prefix, clientID, clientSecret string) *Client {
+	return &Client{
+		httpClient:   httpClient,
+		baseURL:      strings.TrimRight(baseURL, "/"),
+		projectID:    projectID,
+		env:          env,
+		prefix:       prefix,
+		clientID:     clientID,
+		clientSecret: clientSecret,
+		token:        "stale-token",
+	}
+}
+
+func (c *Client) secretPathAndName(key string) (secretPath, secretName string) {
+	full := strings.Trim(backend.PrefixedName(c.prefix, key), "/")
+	if full == "" {
+		return "/", "secret"
+	}
+	parts := strings.Split(full, "/")
+	if len(parts) == 1 {
+		prefixPath := strings.Trim(strings.TrimSuffix(c.prefix, "/"), "/")
+		if prefixPath != "" {
+			return "/" + prefixPath, parts[0]
+		}
+		return "/", parts[0]
+	}
+	name := parts[len(parts)-1]
+	dir := strings.Join(parts[:len(parts)-1], "/")
+	return "/" + dir, name
 }
 
 func (c *Client) Get(ctx context.Context, key string) (string, error) {
 	if key == "" {
 		return "", backend.ErrEmptyKey
 	}
-	name := c.secretName(key)
+	secretPath, name := c.secretPathAndName(key)
 	q := url.Values{}
 	q.Set("workspaceId", c.projectID)
 	q.Set("environment", c.env)
-	q.Set("secretPath", "/")
+	q.Set("secretPath", secretPath)
 	q.Set("secretName", name)
 	var resp struct {
 		Secret struct {
@@ -110,15 +138,15 @@ func (c *Client) Set(ctx context.Context, key, value string) error {
 	if key == "" {
 		return backend.ErrEmptyKey
 	}
-	name := c.secretName(key)
+	secretPath, name := c.secretPathAndName(key)
 	body := map[string]interface{}{
 		"workspaceId": c.projectID,
 		"environment": c.env,
-		"secretPath":  "/",
+		"secretPath":  secretPath,
+		"secretName":  name,
 		"secretValue": value,
 		"type":        "shared",
 	}
-	// Try create; on conflict, update.
 	err := c.doJSON(ctx, http.MethodPost, "/api/v3/secrets/raw/"+url.PathEscape(name), body, nil)
 	if err == nil {
 		return nil
@@ -133,23 +161,30 @@ func (c *Client) Delete(ctx context.Context, key string) error {
 	if key == "" {
 		return backend.ErrEmptyKey
 	}
-	name := c.secretName(key)
+	secretPath, name := c.secretPathAndName(key)
 	body := map[string]interface{}{
 		"workspaceId": c.projectID,
 		"environment": c.env,
-		"secretPath":  "/",
+		"secretPath":  secretPath,
+		"secretName":  name,
 	}
 	return c.doJSON(ctx, http.MethodDelete, "/api/v3/secrets/raw/"+url.PathEscape(name), body, nil)
 }
 
 func (c *Client) List(ctx context.Context) ([]string, error) {
+	prefixPath := strings.Trim(strings.TrimSuffix(c.prefix, "/"), "/")
+	listPath := "/"
+	if prefixPath != "" {
+		listPath = "/" + prefixPath
+	}
 	q := url.Values{}
 	q.Set("workspaceId", c.projectID)
 	q.Set("environment", c.env)
-	q.Set("secretPath", "/")
+	q.Set("secretPath", listPath)
 	var resp struct {
 		Secrets []struct {
-			SecretKey string `json:"secretKey"`
+			SecretKey  string `json:"secretKey"`
+			SecretPath string `json:"secretPath"`
 		} `json:"secrets"`
 	}
 	if err := c.doJSON(ctx, http.MethodGet, "/api/v3/secrets/raw?"+q.Encode(), nil, &resp); err != nil {
@@ -157,8 +192,11 @@ func (c *Client) List(ctx context.Context) ([]string, error) {
 	}
 	out := make([]string, 0, len(resp.Secrets))
 	for _, s := range resp.Secrets {
-		if key, ok := backend.StripPrefix(c.prefix, s.SecretKey); ok && key != "" {
+		full := strings.Trim(strings.TrimPrefix(s.SecretPath, "/")+"/"+s.SecretKey, "/")
+		if key, ok := backend.StripPrefix(c.prefix, full); ok && key != "" {
 			out = append(out, key)
+		} else if c.prefix == "" {
+			out = append(out, s.SecretKey)
 		}
 	}
 	return out, nil

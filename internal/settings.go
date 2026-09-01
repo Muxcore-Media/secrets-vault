@@ -4,10 +4,16 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Muxcore-Media/core/pkg/contracts"
 	"github.com/Muxcore-Media/secrets-vault/internal/backend"
 )
+
+const providerApplyTimeout = 30 * time.Second
+
+// backendFactoryHook is set by tests to inject fake backends.
+var backendFactoryHook func(ctx context.Context, name, prefix string) (backend.Backend, error)
 
 func (m *Module) Settings() []contracts.SettingDef {
 	return m.settingsDefs()
@@ -29,7 +35,7 @@ func (m *Module) settingsDefs() []contracts.SettingDef {
 			Type:        contracts.SettingTypeSelect,
 			Value:       backendN,
 			Default:     "",
-			Description: "External provider (SECRETS_BACKEND); reconnects using provider env credentials",
+			Description: "External provider (SECRETS_BACKEND); reconnects using process env credentials only",
 			Group:       "Provider",
 			Options: []string{
 				backend.BackendVault,
@@ -89,9 +95,16 @@ func (m *Module) applyProvider(backendN, prefix string) error {
 	if backendN == m.backendN && prefix == m.prefix {
 		return nil
 	}
-	b, err := newBackend(context.Background(), backendN, prefix)
+	ctx, cancel := context.WithTimeout(context.Background(), providerApplyTimeout)
+	defer cancel()
+
+	b, err := m.createBackend(ctx, backendN, prefix)
 	if err != nil {
 		return fmt.Errorf("create secrets backend: %w", err)
+	}
+	if err := b.Ping(ctx); err != nil {
+		_ = b.Close()
+		return fmt.Errorf("secrets backend health: %w", err)
 	}
 	old := m.srv.ReplaceBackend(b)
 	m.backend = b
@@ -101,4 +114,11 @@ func (m *Module) applyProvider(backendN, prefix string) error {
 		_ = old.Close()
 	}
 	return nil
+}
+
+func (m *Module) createBackend(ctx context.Context, name, prefix string) (backend.Backend, error) {
+	if backendFactoryHook != nil {
+		return backendFactoryHook(ctx, name, prefix)
+	}
+	return newBackend(ctx, name, prefix)
 }

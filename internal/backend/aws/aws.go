@@ -97,12 +97,20 @@ func (c *Client) Delete(ctx context.Context, key string) error {
 	if key == "" {
 		return backend.ErrEmptyKey
 	}
-	force := true
-	_, err := c.api.DeleteSecret(ctx, &secretsmanager.DeleteSecretInput{
-		SecretId:                   aws.String(c.name(key)),
-		ForceDeleteWithoutRecovery: &force,
-	})
+	input := &secretsmanager.DeleteSecretInput{
+		SecretId: aws.String(c.name(key)),
+	}
+	if forceDeleteWithoutRecovery() {
+		force := true
+		input.ForceDeleteWithoutRecovery = &force
+	}
+	_, err := c.api.DeleteSecret(ctx, input)
 	return mapAWSErr(err)
+}
+
+func forceDeleteWithoutRecovery() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("AWS_SECRETS_FORCE_DELETE")))
+	return v == "1" || v == "true" || v == "yes"
 }
 
 func (c *Client) List(ctx context.Context) ([]string, error) {

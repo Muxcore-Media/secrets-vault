@@ -2,10 +2,34 @@ package internal
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Muxcore-Media/secrets-vault/internal/backend"
 )
+
+type trackingBackend struct {
+	id      int
+	closed  atomic.Bool
+	pingErr error
+}
+
+func (b *trackingBackend) Get(_ context.Context, key string) (string, error) {
+	return "", backend.ErrNotFound
+}
+
+func (b *trackingBackend) Set(_ context.Context, key, value string) error { return nil }
+
+func (b *trackingBackend) Delete(_ context.Context, key string) error { return nil }
+
+func (b *trackingBackend) List(_ context.Context) ([]string, error) { return nil, nil }
+
+func (b *trackingBackend) Ping(_ context.Context) error { return b.pingErr }
+
+func (b *trackingBackend) Close() error {
+	b.closed.Store(true)
+	return nil
+}
 
 func TestModuleInfo(t *testing.T) {
 	m := NewModule(Config{Backend: "vault"})
@@ -13,7 +37,7 @@ func TestModuleInfo(t *testing.T) {
 	if info.ID != "secrets-vault" {
 		t.Fatalf("id %q", info.ID)
 	}
-	if info.Version != "0.1.1" {
+	if info.Version != Version {
 		t.Fatalf("version %q", info.Version)
 	}
 	foundSecrets := false
@@ -48,6 +72,13 @@ func TestModuleInitRequiresBackend(t *testing.T) {
 	}
 }
 
+func TestModuleDefaultGRPCAddr(t *testing.T) {
+	m := NewModule(Config{Backend: "vault"})
+	if m.grpcAddr != "127.0.0.1:9551" {
+		t.Fatalf("grpc addr %q", m.grpcAddr)
+	}
+}
+
 func TestSettings_PreInit(t *testing.T) {
 	m := NewModule(Config{Backend: "vault", Prefix: "app/"})
 	defs := m.Settings()
@@ -79,5 +110,33 @@ func TestSettings_PreInit(t *testing.T) {
 				t.Fatalf("prefix=%q", d.Value)
 			}
 		}
+	}
+}
+
+func TestApplyProviderAfterInitClosesOldBackend(t *testing.T) {
+	first := &trackingBackend{id: 1}
+	second := &trackingBackend{id: 2}
+	call := 0
+	backendFactoryHook = func(_ context.Context, name, prefix string) (backend.Backend, error) {
+		call++
+		if call == 1 {
+			return first, nil
+		}
+		return second, nil
+	}
+	t.Cleanup(func() { backendFactoryHook = nil })
+
+	m := NewModule(Config{Backend: "vault", GRPCAddr: "127.0.0.1:0", Insecure: true})
+	if err := m.Init(context.Background()); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	if err := m.UpdateSetting("prefix", "prod/"); err != nil {
+		t.Fatalf("update prefix: %v", err)
+	}
+	if !first.closed.Load() {
+		t.Fatal("expected first backend Close after prefix change")
+	}
+	if m.backend != second {
+		t.Fatal("expected active backend swap")
 	}
 }

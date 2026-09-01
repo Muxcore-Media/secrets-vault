@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path"
 	"strings"
+	"sync"
 
 	vaultapi "github.com/hashicorp/vault/api"
 
@@ -15,9 +17,11 @@ import (
 
 // Client implements backend.Backend against Vault/OpenBao KV v2.
 type Client struct {
-	client *vaultapi.Client
-	mount  string
-	prefix string
+	client    *vaultapi.Client
+	mount     string
+	prefix    string
+	stopRenew context.CancelFunc
+	renewWg   sync.WaitGroup
 }
 
 // NewFromEnv builds a Vault/OpenBao client from environment variables.
@@ -51,26 +55,69 @@ func NewFromEnv(ctx context.Context, prefix string) (*Client, error) {
 	token := os.Getenv("VAULT_TOKEN")
 	roleID := os.Getenv("VAULT_ROLE_ID")
 	secretID := os.Getenv("VAULT_SECRET_ID")
+	var loginSecret *vaultapi.Secret
 	switch {
 	case token != "":
 		client.SetToken(token)
 	case roleID != "" && secretID != "":
-		secret, err := client.Logical().WriteWithContext(ctx, "auth/approle/login", map[string]interface{}{
+		loginSecret, err = client.Logical().WriteWithContext(ctx, "auth/approle/login", map[string]interface{}{
 			"role_id":   roleID,
 			"secret_id": secretID,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("vault approle login: %w", err)
 		}
-		if secret == nil || secret.Auth == nil || secret.Auth.ClientToken == "" {
+		if loginSecret == nil || loginSecret.Auth == nil || loginSecret.Auth.ClientToken == "" {
 			return nil, fmt.Errorf("vault approle login: empty token")
 		}
-		client.SetToken(secret.Auth.ClientToken)
+		client.SetToken(loginSecret.Auth.ClientToken)
 	default:
 		return nil, fmt.Errorf("set VAULT_TOKEN or VAULT_ROLE_ID and VAULT_SECRET_ID")
 	}
 
-	return &Client{client: client, mount: mount, prefix: prefix}, nil
+	c := &Client{client: client, mount: mount, prefix: prefix}
+	if loginSecret != nil {
+		if err := c.startTokenRenewal(loginSecret); err != nil {
+			return nil, fmt.Errorf("vault token renewal: %w", err)
+		}
+	}
+	return c, nil
+}
+
+func (c *Client) startTokenRenewal(loginSecret *vaultapi.Secret) error {
+	if loginSecret.Auth == nil || !loginSecret.Auth.Renewable {
+		return nil
+	}
+	watcher, err := c.client.NewLifetimeWatcher(&vaultapi.LifetimeWatcherInput{
+		Secret: loginSecret,
+	})
+	if err != nil {
+		return err
+	}
+	renewCtx, cancel := context.WithCancel(context.Background())
+	c.stopRenew = cancel
+	c.renewWg.Add(1)
+	go func() {
+		defer c.renewWg.Done()
+		go watcher.Start()
+		defer watcher.Stop()
+		for {
+			select {
+			case <-renewCtx.Done():
+				return
+			case err := <-watcher.DoneCh():
+				if err != nil && !errors.Is(err, context.Canceled) {
+					slog.Error("vault token renewal stopped", "error", err)
+				}
+				return
+			case renewal := <-watcher.RenewCh():
+				if renewal != nil && renewal.Secret != nil && renewal.Secret.Auth != nil && renewal.Secret.Auth.ClientToken != "" {
+					c.client.SetToken(renewal.Secret.Auth.ClientToken)
+				}
+			}
+		}
+	}()
+	return nil
 }
 
 // NewWithClient is used by tests.
@@ -125,7 +172,11 @@ func (c *Client) Delete(ctx context.Context, key string) error {
 
 func (c *Client) List(ctx context.Context) ([]string, error) {
 	listPath := strings.Trim(c.prefix, "/")
-	full := path.Join(c.mount, "metadata", listPath)
+	return c.listRecursive(ctx, listPath)
+}
+
+func (c *Client) listRecursive(ctx context.Context, relPath string) ([]string, error) {
+	full := path.Join(c.mount, "metadata", relPath)
 	secret, err := c.client.Logical().ListWithContext(ctx, full)
 	if err != nil {
 		return nil, mapVaultErr(err)
@@ -134,17 +185,26 @@ func (c *Client) List(ctx context.Context) ([]string, error) {
 		return []string{}, nil
 	}
 	raw, _ := secret.Data["keys"].([]interface{})
-	out := make([]string, 0, len(raw))
+	var out []string
 	for _, item := range raw {
 		name, ok := item.(string)
-		if !ok || name == "" || strings.HasSuffix(name, "/") {
+		if !ok || name == "" {
 			continue
 		}
-		fullName := path.Join(listPath, name)
-		if key, ok := backend.StripPrefix(c.prefix, fullName); ok && key != "" {
+		childRel := path.Join(relPath, name)
+		if strings.HasSuffix(name, "/") {
+			childRel = strings.TrimSuffix(childRel, "/")
+			nested, err := c.listRecursive(ctx, childRel)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, nested...)
+			continue
+		}
+		if key, ok := backend.StripPrefix(c.prefix, childRel); ok && key != "" {
 			out = append(out, key)
 		} else if c.prefix == "" {
-			out = append(out, name)
+			out = append(out, path.Join(relPath, name))
 		}
 	}
 	return out, nil
@@ -156,6 +216,11 @@ func (c *Client) Ping(ctx context.Context) error {
 }
 
 func (c *Client) Close() error {
+	if c.stopRenew != nil {
+		c.stopRenew()
+		c.renewWg.Wait()
+		c.stopRenew = nil
+	}
 	return nil
 }
 
