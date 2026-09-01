@@ -1,4 +1,4 @@
-FROM golang:1.26-alpine AS builder
+FROM golang:1.27-alpine AS builder
 COPY core/ /build/core/
 COPY secrets-vault/ /build/secrets-vault/
 WORKDIR /build/secrets-vault
