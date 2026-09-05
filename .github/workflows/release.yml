@@ -10,20 +10,24 @@ jobs:
       contents: write
       packages: write
     steps:
+      - uses: Muxcore-Media/mvp/.github/actions/checkout-mirror@main
+        with:
+          token: ${{ secrets.MUXCORE_CI_TOKEN || github.token }}
       - uses: actions/checkout@v4
         with:
           path: core
           repository: Muxcore-Media/core
-      - uses: actions/checkout@v4
-        with:
-          path: secrets-vault
-          fetch-depth: 0
+          token: ${{ secrets.MUXCORE_CI_TOKEN || github.token }}
       - uses: actions/setup-go@v7
         with:
           go-version: "1.26"
           cache: false
+      - name: Point core module at sibling checkout
+        run: |
+          go mod edit -replace=github.com/Muxcore-Media/core=./core
+          go mod edit -replace=github.com/Muxcore-Media/core/pkg/contracts=./core/pkg/contracts
+          go mod edit -replace=github.com/Muxcore-Media/core/sdk/go/module=./core/sdk/go/module
       - name: Build binaries
-        working-directory: ./secrets-vault
         run: |
           mkdir -p dist
           GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o dist/secrets-vault-linux-amd64 ./cmd/module
@@ -43,7 +47,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: ./secrets-vault/Dockerfile
+          file: ./Dockerfile
           push: true
           tags: |
             ghcr.io/${{ env.IMAGE_OWNER }}/secrets-vault:${{ github.ref_name }}
@@ -51,5 +55,5 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v3
         with:
-          files: secrets-vault/dist/*
+          files: dist/*
           generate_release_notes: true
