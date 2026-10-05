@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-05
+
+### Changed
+- CI runs on GitHub-hosted runners from the umbrella template; retired-origin workflows removed.
+- Dependencies resolve from published GitHub tags (no filesystem `replace`); requires core v0.6.0.
+
 ## 0.1.0
 
 - Initial multi-provider SecretsService sidecar (Vault/OpenBao, Infisical, AWS, GCP, Azure).
