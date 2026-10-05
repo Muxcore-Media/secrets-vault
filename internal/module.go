@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 
 	modulesdk "github.com/Muxcore-Media/core/sdk/go/module"
+	manifest "github.com/Muxcore-Media/secrets-vault"
 
 	"github.com/Muxcore-Media/core/pkg/contracts"
 	"github.com/Muxcore-Media/secrets-vault/internal/backend"
@@ -72,7 +73,7 @@ func (m *Module) Info() contracts.ModuleInfo {
 	return contracts.ModuleInfo{
 		ID:           m.id,
 		Name:         "Secrets Vault",
-		Version:      "0.1.1",
+		Version:      modulesdk.ManifestVersion(manifest.ManifestJSON),
 		Roles:        []string{"security"},
 		Description:  "Multi-provider secrets sidecar (Vault/OpenBao, Infisical, AWS, GCP, Azure)",
 		Author:       "MuxCore",

@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	modulesdk "github.com/Muxcore-Media/core/sdk/go/module"
+	manifest "github.com/Muxcore-Media/secrets-vault"
 	"github.com/Muxcore-Media/secrets-vault/internal/backend"
 )
 
@@ -13,7 +15,7 @@ func TestModuleInfo(t *testing.T) {
 	if info.ID != "secrets-vault" {
 		t.Fatalf("id %q", info.ID)
 	}
-	if info.Version != "0.1.1" {
+	if info.Version != modulesdk.ManifestVersion(manifest.ManifestJSON) {
 		t.Fatalf("version %q", info.Version)
 	}
 	foundSecrets := false
