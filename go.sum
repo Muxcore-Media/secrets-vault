@@ -26,12 +26,12 @@ github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1 h1:WJ
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1/go.mod h1:tCcJZ0uHAmvjsVYzEFivsRTN00oz5BEsRgQHu5JZ9WE=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 h1:oygO0locgZJe7PpYPXT5A29ZkwJaPqcva7BVeemZOZs=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2/go.mod h1:wP83P5OoQ5p6ip3ScPr0BAq0BvuPAvacpEuSzyouqAI=
-github.com/Muxcore-Media/core v0.6.12 h1:IsXr8TaSLlMJIzILxCpWssTbuBvTX4KoiqTMypRpq9o=
-github.com/Muxcore-Media/core v0.6.12/go.mod h1:lZ6tuCEjwmXI0zd6lhKOkm/qpB1Js4rrB+Bs9lCNZjA=
+github.com/Muxcore-Media/core v0.6.14 h1:txrjE0arrInXP1LVPC3dPRReehexEqmPRMVtM66rSPQ=
+github.com/Muxcore-Media/core v0.6.14/go.mod h1:lZ6tuCEjwmXI0zd6lhKOkm/qpB1Js4rrB+Bs9lCNZjA=
 github.com/Muxcore-Media/core/pkg/contracts v0.6.0 h1:NNaPjtDT81ESDDSMiEk2LGn6XsIFz+pKhXrr1TeSH+0=
 github.com/Muxcore-Media/core/pkg/contracts v0.6.0/go.mod h1:riu1DrsCAJ9AJf9uf8IG1W8nYzcQ+Y7HiT6okz7Lmck=
-github.com/Muxcore-Media/core/sdk/go/module v0.6.3 h1:ntrr/pqHVy68mKR1FiccxkI4AVlafvCSxP+Kfin7RtA=
-github.com/Muxcore-Media/core/sdk/go/module v0.6.3/go.mod h1:iKKRbT+FVGrn0RMWFOAvAzG6D8JqQJr//qZbkyaJUGQ=
+github.com/Muxcore-Media/core/sdk/go/module v0.6.4 h1:5+sjT3Y4MD17vaLAVAVWcJMJswtrgYfAToEgJT1p35o=
+github.com/Muxcore-Media/core/sdk/go/module v0.6.4/go.mod h1:iKKRbT+FVGrn0RMWFOAvAzG6D8JqQJr//qZbkyaJUGQ=
 github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
 github.com/aws/aws-sdk-go-v2 v1.36.5 h1:0OF9RiEMEdDdZEMqF9MRjevyxAQcf6gY+E7vwBILFj0=
 github.com/aws/aws-sdk-go-v2 v1.36.5/go.mod h1:EYrzvCCN9CMUTa5+6lf6MM4tq3Zjp8UhSGR/cBsjai0=
