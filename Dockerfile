@@ -17,7 +17,7 @@ COPY . .
 RUN entry=./cmd/module; [ -d "$entry" ] || entry=.; \
     go build -trimpath -ldflags="-s -w" -o /out/module "$entry"
 
-FROM alpine:3.21
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates && adduser -D -h /data app
 USER app
 WORKDIR /app
